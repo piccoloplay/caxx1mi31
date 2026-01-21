@@ -2,124 +2,217 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Speech to Text Chat Test</title>
 
 <style>
-body {
-  font-family: system-ui, sans-serif;
-  background: #f4f4f4;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-}
+  body {
+    font-family: system-ui, sans-serif;
+    background: #f4f4f4;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
 
-#chat {
-  flex: 1;
-  padding: 16px;
-  overflow-y: auto;
-}
+  #topbar {
+    background: white;
+    padding: 10px 12px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+  }
 
-.msg {
-  max-width: 70%;
-  padding: 10px 14px;
-  margin-bottom: 10px;
-  border-radius: 12px;
-}
+  #status {
+    font-size: 14px;
+    color: #333;
+    opacity: 0.9;
+  }
 
-.user {
-  background: #d1e7ff;
-  align-self: flex-end;
-}
+  #chat {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
 
-.bot {
-  background: #e5e5e5;
-  align-self: flex-start;
-}
+  .msg {
+    max-width: 80%;
+    padding: 10px 14px;
+    border-radius: 12px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
 
-#controls {
-  display: flex;
-  gap: 8px;
-  padding: 10px;
-  background: white;
-}
+  .user { background: #d1e7ff; align-self: flex-end; }
+  .bot  { background: #e5e5e5; align-self: flex-start; }
+  .sys  { background: #fff3cd; align-self: center; border: 1px solid #ffe69c; }
 
-input {
-  flex: 1;
-  padding: 10px;
-  font-size: 16px;
-}
+  #controls {
+    display: flex;
+    gap: 8px;
+    padding: 10px;
+    background: white;
+    border-top: 1px solid #ddd;
+  }
 
-button {
-  padding: 10px 14px;
-  font-size: 16px;
-  cursor: pointer;
-}
+  input {
+    flex: 1;
+    padding: 10px;
+    font-size: 16px;
+  }
+
+  button {
+    padding: 10px 14px;
+    font-size: 16px;
+    cursor: pointer;
+  }
+
+  button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 </style>
 </head>
 
 <body>
 
+<div id="topbar">
+  <div id="status">Pronto.</div>
+  <div style="font-size:12px;opacity:.7">Desktop: ok • Mobile: spesso limitato</div>
+</div>
+
 <div id="chat"></div>
 
 <div id="controls">
   <input id="textInput" placeholder="Scrivi o parla..." />
-  <button id="micBtn">🎤</button>
+  <button id="micBtn" title="Parla">🎤</button>
   <button id="sendBtn">Invia</button>
 </div>
 
 <script>
-const chat = document.getElementById("chat");
-const input = document.getElementById("textInput");
+  const chat = document.getElementById("chat");
+  const input = document.getElementById("textInput");
+  const micBtn = document.getElementById("micBtn");
+  const statusEl = document.getElementById("status");
 
-function addMessage(text, cls) {
-  const div = document.createElement("div");
-  div.className = "msg " + cls;
-  div.innerText = text;
-  chat.appendChild(div);
-  chat.scrollTop = chat.scrollHeight;
-}
+  function setStatus(s) { statusEl.textContent = s; }
 
-function sendMessage(text) {
-  if (!text.trim()) return;
-  addMessage(text, "user");
-  input.value = "";
+  function addMessage(text, cls) {
+    const div = document.createElement("div");
+    div.className = "msg " + cls;
+    div.innerText = text;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+  }
 
-  setTimeout(() => {
-    addMessage("hello world", "bot");
-  }, 400);
-}
+  function sendMessage(text) {
+    if (!text.trim()) return;
+    addMessage(text, "user");
+    input.value = "";
+    setTimeout(() => addMessage("hello world", "bot"), 250);
+  }
 
-// Pulsante invio
-document.getElementById("sendBtn").onclick = () => {
-  sendMessage(input.value);
-};
+  document.getElementById("sendBtn").onclick = () => sendMessage(input.value);
+  input.addEventListener("keydown", e => { if (e.key === "Enter") sendMessage(input.value); });
 
-// Enter
-input.addEventListener("keydown", e => {
-  if (e.key === "Enter") sendMessage(input.value);
-});
+  // --- Support check Web Speech API ---
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const hasWebSpeech = !!SpeechRecognition;
 
-// Web Speech API
-const SpeechRecognition =
-  window.SpeechRecognition || window.webkitSpeechRecognition;
+  // --- Optional fallback: record audio if Web Speech not available ---
+  async function recordAudioFallback(seconds = 4) {
+    setStatus("Web Speech non disponibile qui. Registro audio per test microfono…");
+    addMessage("⚠️ Web Speech API non supportata su questo dispositivo/browser. Nessun STT possibile in solo HTML senza backend.", "sys");
 
-if (SpeechRecognition) {
-  const recognition = new SpeechRecognition();
-  recognition.lang = "it-IT";
-  recognition.interimResults = false;
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const chunks = [];
+    const rec = new MediaRecorder(stream);
 
-  recognition.onresult = e => {
-    const text = e.results[0][0].transcript;
-    sendMessage(text);
+    rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+
+    const stopped = new Promise(resolve => rec.onstop = resolve);
+    rec.start();
+
+    setTimeout(() => rec.stop(), seconds * 1000);
+    await stopped;
+
+    stream.getTracks().forEach(t => t.stop());
+
+    const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
+    const url = URL.createObjectURL(blob);
+
+    addMessage("✅ Microfono OK (audio registrato). Se vuoi posso aggiungere un bottone per scaricare l’audio.", "sys");
+    setStatus("Microfono testato. (Niente STT senza Web Speech o backend)");
+    // Se vuoi anche un link visibile:
+    // addMessage("Audio (test): " + url, "sys");
+  }
+
+  // --- Main mic action ---
+  micBtn.onclick = async () => {
+    micBtn.disabled = true;
+
+    try {
+      // 1) Forza richiesta permesso microfono (IMPORTANTISSIMO su mobile)
+      setStatus("Richiedo permesso microfono…");
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Non ci serve lo stream qui per Web Speech, lo fermiamo subito
+      stream.getTracks().forEach(t => t.stop());
+
+      // 2) Se Web Speech c'è, usa quello
+      if (hasWebSpeech) {
+        const recognition = new SpeechRecognition();
+        recognition.lang = "it-IT";
+        recognition.interimResults = false;
+        recognition.continuous = false;
+
+        recognition.onstart = () => { setStatus("In ascolto… parla ora"); micBtn.textContent = "🎙️"; };
+        recognition.onend   = () => { setStatus("Pronto."); micBtn.textContent = "🎤"; micBtn.disabled = false; };
+
+        recognition.onerror = (e) => {
+          addMessage("❌ Errore Web Speech: " + (e.error || "unknown"), "sys");
+          setStatus("Errore Web Speech. Riprova.");
+          micBtn.textContent = "🎤";
+          micBtn.disabled = false;
+        };
+
+        recognition.onresult = (e) => {
+          const text = e.results?.[0]?.[0]?.transcript || "";
+          if (text) sendMessage(text);
+        };
+
+        // Start STT
+        recognition.start();
+        return;
+      }
+
+      // 3) Se Web Speech NON c'è, fallback: registra audio (solo test mic)
+      await recordAudioFallback(4);
+      micBtn.disabled = false;
+
+    } catch (err) {
+      const msg = (err && err.name) ? `${err.name}: ${err.message || ""}` : String(err);
+      addMessage("❌ Permesso microfono negato o errore: " + msg, "sys");
+      setStatus("Permesso microfono non disponibile.");
+      micBtn.textContent = "🎤";
+      micBtn.disabled = false;
+    }
   };
 
-  document.getElementById("micBtn").onclick = () => {
-    recognition.start();
-  };
-} else {
-  alert("Web Speech API non supportata su questo browser");
-}
+  // Info iniziale
+  if (!navigator.mediaDevices?.getUserMedia) {
+    addMessage("❌ Questo browser non supporta getUserMedia (microfono).", "sys");
+    setStatus("Browser non supportato.");
+    micBtn.disabled = true;
+  } else if (!hasWebSpeech) {
+    addMessage("ℹ️ Web Speech API non disponibile qui. Il bottone 🎤 chiederà comunque il permesso mic e farà un test registrazione.", "sys");
+  } else {
+    addMessage("ℹ️ Premi 🎤 e parla: vedrai il testo in chat. Risposta sempre 'hello world'.", "sys");
+  }
 </script>
 
 </body>
