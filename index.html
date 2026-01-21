@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<title>Speech to Text Chat Test</title>
+
+<style>
+body {
+  font-family: system-ui, sans-serif;
+  background: #f4f4f4;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+#chat {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.msg {
+  max-width: 70%;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+}
+
+.user {
+  background: #d1e7ff;
+  align-self: flex-end;
+}
+
+.bot {
+  background: #e5e5e5;
+  align-self: flex-start;
+}
+
+#controls {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  background: white;
+}
+
+input {
+  flex: 1;
+  padding: 10px;
+  font-size: 16px;
+}
+
+button {
+  padding: 10px 14px;
+  font-size: 16px;
+  cursor: pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div id="chat"></div>
+
+<div id="controls">
+  <input id="textInput" placeholder="Scrivi o parla..." />
+  <button id="micBtn">🎤</button>
+  <button id="sendBtn">Invia</button>
+</div>
+
+<script>
+const chat = document.getElementById("chat");
+const input = document.getElementById("textInput");
+
+function addMessage(text, cls) {
+  const div = document.createElement("div");
+  div.className = "msg " + cls;
+  div.innerText = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function sendMessage(text) {
+  if (!text.trim()) return;
+  addMessage(text, "user");
+  input.value = "";
+
+  setTimeout(() => {
+    addMessage("hello world", "bot");
+  }, 400);
+}
+
+// Pulsante invio
+document.getElementById("sendBtn").onclick = () => {
+  sendMessage(input.value);
+};
+
+// Enter
+input.addEventListener("keydown", e => {
+  if (e.key === "Enter") sendMessage(input.value);
+});
+
+// Web Speech API
+const SpeechRecognition =
+  window.SpeechRecognition || window.webkitSpeechRecognition;
+
+if (SpeechRecognition) {
+  const recognition = new SpeechRecognition();
+  recognition.lang = "it-IT";
+  recognition.interimResults = false;
+
+  recognition.onresult = e => {
+    const text = e.results[0][0].transcript;
+    sendMessage(text);
+  };
+
+  document.getElementById("micBtn").onclick = () => {
+    recognition.start();
+  };
+} else {
+  alert("Web Speech API non supportata su questo browser");
+}
+</script>
+
+</body>
+</html>
